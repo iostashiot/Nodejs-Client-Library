@@ -54,9 +54,10 @@ module.exports = {
       })
     }
 
+  },
+  onDisconnect: function (callback) {
     socket.on('disconnect', function () {
-      socket.disconnect()
-      console.log('[IOStash] Connection terminated')
+      callback()
     })
 
   },
