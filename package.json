@@ -1,0 +1,22 @@
+{
+  "name": "iostash",
+  "version": "0.0.7",
+  "description": "Platform library for IOStash IoT PaaS",
+  "main": "iostash.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "iostash","iot"
+  ],
+  "author": "IOStash <support@iostash.com> (https://iostash.com/)",
+  "license": "MIT",
+  "dependencies": {
+    "socket.io-client":"~1.4.5"
+  },
+  "repository" :
+  { "type" : "git"
+  , "url" : "https://github.com/iostashiot/Client-Libraries/tree/master/Javascript%20-%20Nodejs"
+  }
+
+}
