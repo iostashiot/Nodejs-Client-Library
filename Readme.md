@@ -49,6 +49,7 @@ This example utilises a public device defined in IOStash.
  - `subscribeLocation(deviceId,cb())` - Subscribes to location data from the specified device.
  - `subscribeActions(deviceId,cb())` - Subscribes to device trigger action of the specified device.
  - `subscribeCustomData(deviceId,cb())` - Subscribes to custom data sent to the device.
+ - `onDisconnect(cb())` - Fires when the connection to the server is lost.
 
 **Notes**
 
