@@ -1,4 +1,7 @@
-IOStash Nodejs Client Library
+
+![IOStash IoT PaaS](http://iostash.io/wp-content/uploads/2016/06/iostashbeta_black.png) 
+
+ Nodejs Client Library
 ===================
 
 
@@ -34,7 +37,7 @@ This example utilises a public device defined in IOStash.
     var iostash = require('iostash')
     iostash.initPublic('5734997f8680bc62de000006')
     iostash.subscribeDevice('5734997f8680bc62de000006', function (update) {
-    	console.log(update)
+      console.log(update)
     })
 
 **Methods**   
