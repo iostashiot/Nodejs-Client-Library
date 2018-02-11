@@ -1,142 +1,190 @@
 /*
-IOStash IoT PaaS Platform Library for Nodejs
-Copyright (c) 2016 Aravind VS
-http://iostash.com
+IOStash IoT PaaS Platform Library for Nodejs v2.0
+Copyright (c) 2018 Aravind VS
+https://iostash.io
 */
+
+
 var io = require('socket.io-client')
-
-var access_token = null
+var colors = require('colors');
+var async = require('async');
+var _ = require('lodash');
 var socket = null
-var isPublic = false
+var logs = false;
+var API_URL = 'https://api.iostash.io:83';
 
-module.exports = {
-  init: function (token) {
-    if (!token) {
-      console.log('[IOStash] accessToken not specified!')
-      return
-    }
-    access_token = token
-    socket = io('https://api.iostash.io:83', { query: 'accessToken=' + access_token,'reconnect': true, 'reconnection delay': 500,'max reconnection attempts': 10 })
-    socket.on('connect', function () {
-      console.log('[IOStash] Server connection succeeded')
-    })
+function iostash(options) {
+    var opts = options;
+    var logs = opts.debugLogs || false;
+    this.subscriptionManager = {
+        authenticated: false,
+        connected: false,
+        subscriptions: [],
+        addSubscription: function(event, id) {
+            this.subscriptions.push({ event: event, id: id });
+        },
+        removeSubscription: function(event, id) {
+            _.remove(this.subscriptions, function(currentObject) {
+                return (currentObject.event === event && currentObject.id === id);
+            });
+        },
+        checkSubscription: function(event, id) {
+            return _.some(this.subscriptions, function(subscription) {
+                return subscription.event == event && subscription.id == id;
+            })
+        }
+    };
 
-    if (socket) {
-      socket.on('autherror', function (data) {
-        console.log('[IOStash AUTH ERROR] ' + data.message)
-      })
-    }
+    var self = this;
 
-    socket.on('disconnect', function () {
-      socket.disconnect()
-      console.log('Connection terminated')
-    })
-
-  },
-
-  initPublic: function (devToken) {
-    if (!devToken) {
-      alert('deviceToken is required!')
-      return
-    }
-
-    device_token = devToken
-    var host = 'https://api.iostash.io:83'
-    socket = io(host, {query: 'deviceToken=' + device_token,'reconnect': true, 'reconnection delay': 500,'max reconnection attempts': 10 })
-    socket.on('connect', function () {
-      isPublic = true
-    })
-
-    if (socket) {
-      socket.on('autherror', function (data) {
-        alert(data.message)
-        console.log('[IOStash Auth Error] ' + data.message)
-      })
+    function _log(message) {
+        if (logs)
+            console.log('[IOStash]'.green, message)
     }
 
-  },
-  onDisconnect: function (callback) {
-    socket.on('disconnect', function () {
-      callback()
-    })
-
-  },
-
-  subscribeDevice: function (deviceId, callback) {
-    socket.emit('subscribeDevice', deviceId)
-    socket.on('devicesubscriptionFailed' + deviceId, function (data) {
-      console.log(data)
-    })
-    socket.on('deviceUpdate' + deviceId, function (data) {
-      callback(data)
-    })
-  },
-
-  unsubscribeDevice: function (deviceId, callback) {
-    socket.emit('unsubscribeDevice', deviceId)
-    socket.on('deviceUnsubcribed/#' + socket.id, function (data) {
-      callback(data)
-    })
-  },
-
-  subscribeChannel: function (channelId, callback) {
-    if (isPublic) {
-      console.log('[IOStash] Only public devices can be subscribed to in Public Mode')
-      return
+    function _error(message) {
+        console.log('[IOStash]'.red, message)
     }
-    socket.emit('channelSubscribe', channelId)
 
-    socket.on('channelsubscriptionFailed' + channelId, function (data) {
-      console.log(data)
-    })
+    if (!opts.accessToken || opts.accessToken.length < 10)
+        _error('Invalid token specified')
+    else {
+        _log('Attempting connection')
+        socket = io(API_URL, { reconnection: opts.autoReconnect || true, reconnectionDelayMax: opts.retryDelay || 500, reconnectionAttempts: opts.retryAttempts || 10 });
+        socket.on('connect', function() {
+            _log('Connected, authenticating')
+            self.subscriptionManager.connected = true;
+            socket.emit('authenticate', { accessToken: opts.accessToken });
+            socket.on('disconnect', function() {
+                self.subscriptionManager.connected = false;
+                _error('Connection closed')
+            });
 
-    socket.on('channelUpdate' + channelId, function (data) {
-      callback(data)
-    })
-  },
+            socket.on('authenticated', function(data) {
+                self.subscriptionManager.authenticated = true;
+                _log('Auth successful')
+                async.each(self.subscriptionManager.subscriptions, function(subscription) {
+                    socket.emit(subscription.event, subscription.id)
+                })
+            });
 
-  unsubscribeChannel: function (channelId, callback) {
-    socket.emit('channelUnsubscribe', channelId)
-    socket.on('channelunsubcribed/#' + socket.id, function (data) {
-      callback(data)
-    })
-  },
+            socket.on('unauthorized', function(e) {
+                _error('Auth failed - Invalid access token')
+                self.subscriptionManager.authenticated = false;
+            });
+        });
 
-  subscribeDataPoint: function (deviceId, dataPointName, callback) {
-    socket.emit('subscribeDataPoint', {'deviceID': deviceId,'dataPoint': dataPointName})
+        socket.on('reconnect_failed', function(e) {
+            _error('Reconnection attempts failed. Please check your network connection')
+            self.subscriptionManager.authenticated = false;
+        })
 
-    socket.on('datapointsubscriptionFailed' + deviceId + dataPointName, function (data) {
-      console.log(data)
-    })
-
-    socket.on('dataPointUpdate' + deviceId + dataPointName, function (data) {
-      callback(data)
-    })
-  },
-
-  unsubscribeDataPoint: function (deviceId, dataPointName, callback) {
-    socket.emit('unsubscribeDataPoint', deviceId + dataPointName)
-
-    socket.on('dataPointUpdateUnsubscribed/#' + socket.id, function (data) {
-      callback(data)
-    })
-  },
-
-  subscribeLocation: function (deviceId, callback) {
-    socket.on('newlocationUpdate' + deviceId, function (data) {
-      callback(data)
-    })
-  },
-  subscribeActions: function (deviceId, callback) {
-    socket.on('action' + deviceId, function (data) {
-      callback(data)
-    })
-  },
-
-  subscribeCustomData: function (deviceId, callback) {
-    socket.on('publish' + deviceId, function (data) {
-      callback(data)
-    })
-  }
-
+    }
 }
+
+iostash.prototype.subscribeDevice = function(deviceId, callback) {
+    socket.emit('subscribeDevice', deviceId)
+    this.subscriptionManager.addSubscription('subscribeDevice', deviceId);
+    socket.on('devicesubscriptionFailed' + deviceId, function(data) {
+        _error('Subscription to ' + deviceId.yellow + ' failed: ' + data)
+        callback(data)
+    })
+    socket.on('deviceUpdate' + deviceId, function(data) {
+        callback(null, data)
+    })
+}
+
+iostash.prototype.unsubscribeDevice = function(deviceId, callback) {
+    socket.emit('unsubscribeDevice', deviceId)
+    socket.on('deviceUnsubcribed/#' + socket.id, function(data) {
+        this.subscriptionManager.removeSubscription('subscribeDevice', deviceId);
+        callback(data)
+    })
+}
+
+iostash.prototype.subscribeChannel = function(channelId, callback) {
+    socket.emit('channelSubscribe', channelId)
+    this.subscriptionManager.addSubscription('channelSubscribe', channelId);
+    socket.on('channelsubscriptionFailed' + channelId, function(data) {
+        callback(data)
+    })
+    socket.on('channelUpdate' + channelId, function(data) {
+        callback(null, data)
+    })
+}
+
+iostash.prototype.unsubscribeChannel = function(channelId, callback) {
+    socket.emit('channelUnsubscribe', channelId)
+    socket.on('channelunsubcribed/#' + socket.id, function(data) {
+        this.subscriptionManager.removeSubscription('channelSubscribe', channelId);
+        callback(data)
+    })
+}
+
+iostash.prototype.subscribeDataPoint = function(deviceId, dataPointName, callback) {
+    socket.emit('subscribeDevice', deviceId)
+    socket.emit('subscribeDataPoint', { 'deviceID': deviceId, 'dataPoint': dataPointName })
+    this.subscriptionManager.addSubscription('subscribeDataPoint', { 'deviceID': deviceId, 'dataPoint': dataPointName });
+    socket.on('datapointsubscriptionFailed' + deviceId + dataPointName, function(data) {
+        callback(data)
+    })
+    socket.on('dataPointUpdate' + deviceId + dataPointName, function(data) {
+        callback(null, data)
+    })
+}
+
+iostash.prototype.unsubscribeDataPoint = function(deviceId, dataPointName, callback) {
+    socket.emit('unsubscribeDataPoint', deviceId + dataPointName)
+    socket.on('dataPointUpdateUnsubscribed/#' + socket.id, function(data) {
+        this.subscriptionManager.removeSubscription('subscribeDataPoint', { 'deviceID': deviceId, 'dataPoint': dataPointName });
+        callback(data)
+    })
+}
+
+iostash.prototype.subscribeCustomData = function(deviceId, callback) {
+    if (!this.subscriptionManager.checkSubscription('subscribeDevice', deviceId)) {
+        socket.emit('subscribeDevice', deviceId)
+        this.subscriptionManager.addSubscription('subscribeDevice', deviceId);
+    }
+    socket.on('publish' + deviceId, function(data) {
+        callback(null, data)
+    })
+}
+
+iostash.prototype.subscribeLocation = function(deviceId, callback) {
+    if (!this.subscriptionManager.checkSubscription('subscribeDevice', deviceId)) {
+        socket.emit('subscribeDevice', deviceId)
+        this.subscriptionManager.addSubscription('subscribeDevice', deviceId);
+    }
+    socket.on('newlocationUpdate' + deviceId, function(data) {
+        callback(null, data)
+    })
+}
+
+iostash.prototype.subscribeActions = function(deviceId, callback) {
+    if (!this.subscriptionManager.checkSubscription('subscribeDevice', deviceId)) {
+        socket.emit('subscribeDevice', deviceId)
+        this.subscriptionManager.addSubscription('subscribeDevice', deviceId);
+    }
+    socket.on('action' + deviceId, function(data) {
+        callback(null, data)
+    })
+}
+
+iostash.prototype.getConnectionStatus = function() {
+    return this.subscriptionManager.connected;
+}
+
+iostash.prototype.connectionDropped = function(callback) {
+    socket.on('disconnect', function() {
+        callback('Connection dropped');
+    });
+}
+
+iostash.prototype.connectionFatal = function(callback) {
+    socket.on('reconnect_failed', function(e) {
+        callback('Cannot establish connection, please check your network')
+    })
+}
+
+module.exports = iostash;
