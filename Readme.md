@@ -6,7 +6,7 @@
 ===================
 
 
-[![NPM](https://nodei.co/npm-dl/iostash.png)](https://nodei.co/npm/iostash/)
+[![NPM](https://nodei.co/npm/iostash.png?downloads=true)](https://nodei.co/npm/iostash/)
 
 
 Nodejs Client library for IOStash IoT PaaS. Supports realtime data subscription to Devices, Data Points, Location, Channels and Custom Data sent to devices.
