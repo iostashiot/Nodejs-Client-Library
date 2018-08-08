@@ -11,7 +11,7 @@ var async = require('async');
 var _ = require('lodash');
 var socket = null
 var logs = false;
-var API_URL = 'https://api.iostash.io:83';
+var API_URL = 'api.iostash.io:82';
 
 function iostash(options) {
     var opts = options;
